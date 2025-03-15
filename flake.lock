@@ -1,0 +1,48 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1741513245,
+        "narHash": "sha256-7rTAMNTY1xoBwz0h7ZMtEcd8LELk9R5TzBPoHuhNSCk=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "e3e32b642a31e6714ec1b712de8c91a3352ce7e1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "raylib": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1730156322,
+        "narHash": "sha256-pPYyFpZgQjq6auRzuiIJLS1tcCmoY+SlL+SNvGIjB4E=",
+        "owner": "Anut-py",
+        "repo": "h-raylib",
+        "rev": "113a642972e4e00d9d6375b29c5dc0e1ff5e21ae",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Anut-py",
+        "repo": "h-raylib",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "raylib": "raylib"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
