@@ -68,14 +68,15 @@ executable hs-raylib
 
     -- Other library packages from which modules are imported.
     build-depends:    
-        base ^>=4.18.2.1,
+        base ^>=4.18.2,
         linear,
         lens,
         text ^>=2.1.2,
         h-raylib,
         mtl,
         parallel,
-        MemoTrie
+        MemoTrie,
+        containers
 
     -- Directories containing source files.
     hs-source-dirs:   

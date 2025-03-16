@@ -4,13 +4,13 @@ import Raylib.Core (beginMode2D, endMode2D, getCharPressed, getKeyPressed, getMo
 import Linear (V3(V3), V4 (V4), V2 (V2), Metric (distance), R1(_x), R2(_y), R3, R4)
 import qualified Data.Text as T
 import Raylib.Core.Textures (colorFromNormalized)
-import Raylib.Types.Core (Vector4, Color, Rectangle (Rectangle, rectangle'x, rectangle'y, rectangle'height, rectangle'width), KeyboardKey (KeyBackspace, KeyDelete, KeyRight, KeyLeft), MouseButton (MouseButtonLeft))
-import Raylib.Core.Shapes (drawRectangleRec, drawLine)
+import Raylib.Types.Core (Vector4, Color, Rectangle (Rectangle, rectangle'x, rectangle'y, rectangle'height, rectangle'width), KeyboardKey (KeyBackspace, KeyDelete, KeyRight, KeyLeft, KeyEnter), MouseButton (MouseButtonLeft))
+import Raylib.Core.Shapes (drawRectangleRec, drawLine, drawRectangleV, drawLineV)
 import Raylib.Core.Text (drawText, measureText, drawTextEx, getFontDefault, measureTextEx)
 import Data.Char (chr)
 import Raylib.Util.Colors (white)
 import Raylib.Types (Font)
-import Control.Lens
+import Control.Lens ((^.), (&), (%~))
 
 uiBgCol :: Color
 uiBgCol = colorFromNormalized $ V4 0.1 0.1 0.1 0.95
@@ -20,6 +20,9 @@ uiFgCol = colorFromNormalized $ V4 0.8 0.8 0.8 0.85
 
 uiPad :: Int 
 uiPad = 10
+
+uiPadF :: Float
+uiPadF = fromIntegral uiPad
 
 uiFont :: IO Font
 uiFont = getFontDefault 
@@ -38,35 +41,54 @@ rectangleCenter rect = V2 (x + hw) (y + hh)
 data TextBox = TextBox {
     tbBefore :: T.Text,
     tbAfter :: T.Text,
-    tbRect :: Rectangle
+    tbCorner :: V2 Float,
+    tbSize :: Float
 }
 
-mkTextbox :: Rectangle -> TextBox
-mkTextbox r = TextBox { tbBefore = T.Empty, tbAfter = T.Empty, tbRect = r }
+mkTextbox :: Float -> V2 Float -> TextBox
+mkTextbox s c = TextBox { tbBefore = T.empty
+                        , tbAfter = T.empty
+                        , tbSize = s
+                        , tbCorner = c}
 
 drawTextBox :: TextBox -> IO ()  
 drawTextBox tb = do
-            drawRectangleRec (tbRect tb) uiBgCol
-            drawText bef (x + uiPad) th s uiFgCol
-            l <- measureText bef s
-            drawLine
-                (x + uiPad + l) (th + s)
-                (x + uiPad + l + s) (th + s)
+            let corner = tbCorner tb
+                size = tbSize tb
+                bef = T.unpack $ tbBefore tb
+                af = T.unpack $ tbAfter tb
+                befLastLine = let l = lines bef in
+                              case l of
+                                [] -> ""
+                                x -> last x
+                newLineEnd = case bef of
+                                "" -> False
+                                x -> last x == '\n'
+                text = bef ++ af
+                letterW = size * 0.3
+            font <- uiFont
+            (V2 w h) <- measureTextEx font text size letterW 
+            (V2 _ befH) <- measureTextEx font bef size letterW 
+            (V2 befW _) <- if not newLineEnd 
+                    then measureTextEx font befLastLine size letterW
+                    else return 0
+            drawRectangleV 
+                corner  
+                (V2 (w + 2*uiPadF) (h + 2*uiPadF) ) 
+                uiBgCol
+            drawTextEx 
+                font 
+                text 
+                (corner + V2 uiPadF uiPadF) 
+                size 
+                letterW
+                uiFgCol
+            let start = V2 befW befH
+                end = V2 (befW + size) befH
+            drawLineV 
+                (start + corner + V2 uiPadF uiPadF) 
+                (end + corner + V2 uiPadF uiPadF)
                 white 
-            drawLine
-                (x + uiPad + l) (th + s)
-                (x + uiPad + l) (th + s - 3)
-                white 
-            drawText (T.unpack $ tbAfter tb) (x + uiPad + 2 + l) th s uiFgCol
-            where
-            bef = T.unpack $ tbBefore tb
-            r = tbRect tb
-            x = round $ rectangle'x r
-            y = round $ rectangle'y r
-            h' = rectangle'height r
-            h = round (0.5 * h')  
-            s = round (0.4 * h')
-            th = y + h - round (0.2 * h')
 
 updateTextBox :: TextBox -> IO TextBox
 updateTextBox tb = do
@@ -77,6 +99,7 @@ updateTextBox tb = do
             _ -> return tb
         k <- getKeyPressed 
         case k of
+            KeyEnter -> return $ tb { tbBefore = T.snoc (tbBefore tb) '\n' }
             KeyBackspace -> -- Backspace
                 return $ tb { tbBefore = T.dropEnd 1 (tbBefore tb)}
             KeyDelete    -> -- Del

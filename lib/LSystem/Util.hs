@@ -1,6 +1,6 @@
 module LSystem.Util where
 
-import Linear (V3(..), V2(..), R1(_x), R2(_y), R3 (_z), (*^))
+import Linear (V3(..), V2(..), R1(_x), R2(_y), R3 (_z), (*^), cross)
 import LSystem
 import Control.Lens
 import Raylib.Types (Mesh (Mesh))
@@ -9,6 +9,9 @@ import Util (perp)
 import Raylib.Util.Math (vector3RotateByAxisAngle)
 import Raylib.Core.Models (drawLine3D)
 import Raylib.Util.Colors (white, orange)
+import Data.Map (Map)
+import qualified Data.Map as M
+import qualified Data.Text as T
 
 data Axis = X | Y | Z 
 
@@ -17,18 +20,39 @@ toRad :: Float -> Float
 toRad d = (d / 180) * pi
 
 rotateV3 :: Axis -> Float -> V3 Float -> V3 Float
-rotateV3 X a v = vector3RotateByAxisAngle v (V3 1 0 0) a
-rotateV3 Y a v = vector3RotateByAxisAngle v (V3 0 1 0) a 
+rotateV3 X a v = vector3RotateByAxisAngle v (perp v) a
+rotateV3 Y a v = vector3RotateByAxisAngle v (cross v (perp v)) a 
 rotateV3 Z a v = vector3RotateByAxisAngle v (V3 0 0 1) a 
 
 rotateSt :: Axis -> Float -> DrawState -> DrawState
-rotateSt axis angle st = turtle { tuDirection = dir } : rest
+rotateSt Z angle st = turtle { tuDirectionPerp = newPerp } : rest
           where
           turtle = head st
           rest = tail st
           oldDir =  tuDirection turtle
+          oldPerp = tuDirectionPerp turtle
           rad = (pi * angle) / 180 
-          dir = rotateV3 axis rad oldDir
+          newPerp = vector3RotateByAxisAngle oldPerp oldDir rad 
+
+rotateSt Y angle st = turtle { tuDirection = dir, tuDirectionPerp = newPerp } : rest
+          where
+          turtle = head st
+          rest = tail st
+          oldDir =  tuDirection turtle
+          oldPerp = tuDirectionPerp turtle
+          axis = cross oldDir oldPerp
+          rad = (pi * angle) / 180 
+          dir = vector3RotateByAxisAngle oldDir axis rad 
+          newPerp = vector3RotateByAxisAngle oldPerp axis rad
+
+rotateSt X angle st = turtle { tuDirection = dir } : rest
+          where
+          turtle = head st
+          rest = tail st
+          oldDir =  tuDirection turtle
+          axis = tuDirectionPerp turtle
+          rad = (pi * angle) / 180 
+          dir = vector3RotateByAxisAngle oldDir axis rad 
 
 moveSt :: DrawState -> DrawState
 moveSt st = turtle { tuPosition = newPos }  : rest 
@@ -130,7 +154,7 @@ pushSt :: DrawState -> DrawState
 pushSt st = new : st 
            where
             last = head st
-            new = Turtle { tuPosition = tuPosition last, tuDirection = tuDirection last }
+            new = Turtle { tuPosition = tuPosition last, tuDirection = tuDirection last, tuDirectionPerp = tuDirectionPerp last }
 
 popSt :: DrawState -> DrawState
 popSt st = if length st < 2 
@@ -140,7 +164,8 @@ popSt st = if length st < 2
 initialState :: V3 Float -> DrawState
 initialState dir = [Turtle { 
                        tuPosition = V3 0 0 0, 
-                       tuDirection = dir }]
+                       tuDirection = dir,
+                       tuDirectionPerp = perp dir}]
 
 newtype MonoidMesh = MonoidMesh Mesh
 
@@ -183,3 +208,12 @@ instance Semigroup MonoidMesh where
 
 instance Monoid MonoidMesh where
     mempty = MonoidMesh $ Mesh 0 0 [] [] Nothing [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing 0 0 Nothing
+
+parseRules :: T.Text -> (T.Text, Map Char T.Text)
+parseRules t = foldl parseLines (T.pack "", M.empty) (T.lines t) 
+    where
+    parseLines :: (T.Text, Map Char T.Text) -> T.Text -> (T.Text, Map Char T.Text)     
+    parseLines (initText, ruleMap) text = case T.break (=='=') text of
+                        (i, r) | i == T.pack "init" -> (r, ruleMap)
+                        (i, r) | T.length i == 1    -> (initText, M.insert (T.head i) r ruleMap)
+                        _                           -> (initText, ruleMap)

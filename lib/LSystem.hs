@@ -13,6 +13,7 @@ produce input rules = T.foldl  (\res ch -> T.append res (rules ch)) (T.pack "") 
 data Turtle = Turtle {
       tuPosition :: V3 Float
     , tuDirection :: V3 Float
+    , tuDirectionPerp :: V3 Float
 } 
 
 type DrawState = [Turtle]
