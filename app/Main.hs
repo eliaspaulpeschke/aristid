@@ -8,7 +8,7 @@ import Raylib.Core.Models (drawGrid, drawModel, genMeshCube, loadModel, loadMode
 import Raylib.Types (Camera3D (Camera3D), CameraMode (CameraModeFirstPerson, CameraModeOrbital, CameraModeFree), CameraProjection (CameraPerspective), pattern Vector3, Camera2D (Camera2D), pattern Vector2, Rectangle (Rectangle), Camera, KeyboardKey (KeyUp, KeyDown), Mesh (Mesh), Color)
 import Raylib.Util (drawing, mode3D, whileWindowOpen_, withWindow, managed, mode2D)
 import Raylib.Util.Colors (orange, white, black, gray)
-import UI (mkTextbox, drawTextBox, textBoxUpdate, TextBox(..), textBoxText)
+import UI (mkTextbox, drawTextBox, TextBox(..), textBoxText, NumberBox (NumberBox, nbValue, nbInc, nbRect), updateNumberBox, updateTextBox, drawNumberBox)
 import qualified Data.Text as T
 import LSystem
 import Linear (V3(V3))
@@ -58,14 +58,22 @@ o = colorAlpha orange 0.7
 
 tbStart = mkTextbox (Rectangle 50 50 200 50)
 
+nbStart = NumberBox {
+            nbValue = 0::Int, 
+            nbInc = 1, 
+            nbRect = Rectangle 50 500 65 65
+          }
+
 data AppState = AppState {
     asTextBox :: TextBox,
+    asNumBox :: NumberBox Int,
     asCam :: Camera3D,
     asCam2D :: Camera2D
 }
 
 initialAppState = AppState { 
         asTextBox = tbStart, 
+        asNumBox = nbStart,
         asCam = Camera3D 
             (Vector3 2 1 2) 
             (Vector3 0 0 0) 
@@ -79,6 +87,10 @@ initialAppState = AppState {
             1
         }
 
+times :: Int -> (a -> a) -> (a -> a)
+times x f | x < 2 = f
+times x f = f . times (x - 1) f
+
 main :: IO ()
 main = do
   withWindow
@@ -87,7 +99,7 @@ main = do
     "test"
     60
     ( \window -> do
-        disableCursor
+--        disableCursor
 
        -- mod <- loadModelFromMeshManaged iom window
 --        m <- managed window $ uploadMesh myMesh False
@@ -99,23 +111,33 @@ main = do
               let c3 = asCam appstate
                   c2 = asCam2D appstate
                   tb = asTextBox appstate
+                  nb = asNumBox appstate
               in do
               drawing
                 ( do
                     clearBackground black 
                     mode3D c3
                       ( do
-                          mapM_ (\(x, y) -> drawLine3D x y orange) (mkMesh $ textBoxText tb) 
+                          let txt = textBoxText tb
+                              num = nbValue nb
+                              production = times num (`produce` plantRules) txt
+                          mapM_ (\(x, y) -> drawLine3D x y orange) (mkMesh production) 
                           --drawMesh m mat matrixIdentity
                           drawGrid 20 0.5
                           
                        )
-                    mode2D c2 (drawTextBox tb)
+                    mode2D c2 
+                       ( do
+                           drawTextBox tb
+                           drawNumberBox nb
+                       )
                 )
               cam <- camUpDown c3 
               cam2 <- updateCamera cam CameraModeFirstPerson 
-              tn <- textBoxUpdate tb
-              return $ appstate { asTextBox = tn, asCam = cam2 }
+              tn <- updateTextBox tb
+              nn <- updateNumberBox nb
+              
+              return $ appstate { asTextBox = tn, asCam = cam2, asNumBox = nn }
           )
           initialAppState 
     )
