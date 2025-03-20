@@ -3,7 +3,6 @@ module LSystem where
 import Linear (V3)
 import qualified Data.Text as T
 import Control.Monad.Writer.Lazy
-import Control.Lens (Identity)
 
 type Rules = Char -> T.Text 
 
@@ -20,12 +19,10 @@ type DrawState = [Turtle]
 
 type DrawRulesIO = Char -> DrawState -> IO DrawState 
 
---type DrawRulesW w = Char -> DrawState -> WriterT w IO DrawState
-
-type DrawRulesW w = Char -> DrawState -> WriterT w Identity DrawState
+type DrawRulesW w = Char -> DrawState -> Writer w DrawState
 
 drawIO :: T.Text -> DrawState -> DrawRulesIO -> IO DrawState 
 drawIO input initialSt rules =  T.foldlM' (flip rules) initialSt input
 
-drawW :: Monoid w => T.Text -> DrawState -> DrawRulesW w -> WriterT w Identity DrawState 
-drawW input initialSt rules =  T.foldlM' (flip rules) initialSt input
+drawW :: Monoid w =>  DrawRulesW w -> T.Text -> DrawState -> (DrawState, w)
+drawW rules input initialSt =  runWriter $ T.foldlM' (flip rules) initialSt input

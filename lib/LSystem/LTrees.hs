@@ -6,7 +6,7 @@ import Control.Monad.State.Lazy (StateT(StateT), MonadState (get, put), evalStat
 import Control.Monad.Identity (Identity(Identity, runIdentity))
 import Data.Foldable1 (Foldable1(toNonEmpty))
 import LSystem (DrawRulesW, DrawState, drawW)
-import Control.Monad.Writer (execWriterT, WriterT (runWriterT))
+import Control.Monad.Writer (execWriterT, WriterT (runWriterT), execWriter, runWriter)
 import Control.Parallel.Strategies (parMap, rdeepseq, NFData, rpar)
 
 data LTree =  LNode T.Text [LTree] | LLeaf T.Text
@@ -64,7 +64,6 @@ unparseTree (LNode t xs) = T.concat (t : map handle xs)
             handle x = T.snoc (T.cons '[' $ unparseTree x) ']'
 
 evalLTreeW :: (Monoid w) => DrawRulesW w -> DrawState -> LTree -> w
-evalLTreeW f st (LLeaf t) = runIdentity $ execWriterT $ drawW t st f
-evalLTreeW f st (LNode t d) = runIdentity $ do
-                            (newSt, res) <- runWriterT $ drawW t st f 
-                            pure ( res <> mconcat (parMap rpar (evalLTreeW f newSt) d))
+evalLTreeW r st (LLeaf t) = let (_, res) = drawW r t st in res
+evalLTreeW r st (LNode t d) = let (newSt, res) = drawW r t st in
+                            ( res <> mconcat (parMap rpar (evalLTreeW r newSt) d))
