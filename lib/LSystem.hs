@@ -1,8 +1,9 @@
 module LSystem where
 
-import Linear (V3)
+import Linear (V3, Quaternion)
 import qualified Data.Text as T
 import Control.Monad.Writer.Lazy
+import Raylib.Types (Matrix)
 
 type Rules = Char -> T.Text 
 
@@ -26,3 +27,9 @@ drawIO input initialSt rules =  T.foldlM' (flip rules) initialSt input
 
 drawW :: Monoid w =>  DrawRulesW w -> T.Text -> DrawState -> (DrawState, w)
 drawW rules input initialSt =  runWriter $ T.foldlM' (flip rules) initialSt input
+
+{- A Drawable should allow appending - hence monoid
+ - and it should be transformable
+ -}
+class Monoid d => Drawable d where
+    transform :: Matrix -> d -> d

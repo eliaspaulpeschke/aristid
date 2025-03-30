@@ -5,19 +5,20 @@ module Main where
 import Raylib.Core (clearBackground, disableCursor, isKeyPressed, isKeyDown, enableCursor)
 import Raylib.Core.Camera (updateCamera)
 import Raylib.Core.Models (drawGrid,  drawLine3D)
-import Raylib.Types (Camera3D (Camera3D), CameraMode (CameraModeFirstPerson), CameraProjection (CameraPerspective), pattern Vector3, Camera2D (Camera2D), pattern Vector2, Rectangle (Rectangle), KeyboardKey (KeyUp, KeyDown, KeyLeftControl, KeyRightControl, KeyM), Color)
+import Raylib.Types (Camera3D (Camera3D), CameraMode (CameraModeFirstPerson), CameraProjection (CameraPerspective), pattern Vector3, Camera2D (Camera2D), pattern Vector2, Rectangle (Rectangle), KeyboardKey (KeyUp, KeyDown, KeyLeftControl, KeyRightControl, KeyM), Color, Quaternion(..)) 
 import Raylib.Util (drawing, mode3D, whileWindowOpen_, withWindow, mode2D)
-import Raylib.Util.Colors (orange, white, black)
+import Raylib.Util.Colors (orange, white, black, blue)
 import UI (mkTextbox, drawTextBox, TextBox(..), textBoxText, NumberBox (NumberBox, nbValue, nbInc, nbRect), updateNumberBox, updateTextBox, drawNumberBox)
 import qualified Data.Text as T
 import LSystem
-import Linear (V3(V3), V2(V2))
+import Linear (V3(V3), V2(V2), V4 (V4))
 import Raylib.Util.Camera (cameraMove)
 import LSystem.Util
 import Raylib.Core.Textures (colorAlpha)
 import Data.Map (Map)
 import qualified Data.Map as M
 import LSystem.LTrees (evalLTreeW, parseLTree)
+import Raylib.Util.Math (vector3RotateByQuaternion, quaternionNormalize)
 
 modelPath :: String
 modelPath = "/home/elias/repos/misc/hs_raylib/assets/Model.obj" 
@@ -55,6 +56,28 @@ nbStartI = [ NumberBox {
             nbRect = Rectangle 1285 20 65 65
           } ]
 
+nbStartF :: [ NumberBox Float ]
+nbStartF = [ NumberBox {
+              nbValue = 1::Float, 
+              nbInc = 0.01, 
+              nbRect = Rectangle 1285 80 65 65
+             }
+            , NumberBox {
+              nbValue = 0::Float, 
+              nbInc = 0.01, 
+              nbRect = Rectangle 1285 140 65 65
+             }
+            , NumberBox {
+              nbValue = 0::Float, 
+              nbInc = 0.01, 
+              nbRect = Rectangle 1285 200 65 65
+             }
+            , NumberBox {
+              nbValue = 0::Float, 
+              nbInc = 0.01, 
+              nbRect = Rectangle 1285 260 65 65
+             } ]
+
 data InputMode = LookAround | InteractUI
 
 data AppState = AppState {
@@ -69,7 +92,7 @@ data AppState = AppState {
 initialAppState = AppState { 
           asTextBoxes = tbStart 
         , asNumBoxesInt = nbStartI
-        , asNumBoxesFloat = []
+        , asNumBoxesFloat = nbStartF 
         , asCam3D = Camera3D 
             (Vector3 2 1 2) 
             (Vector3 0 0 0) 
@@ -121,9 +144,15 @@ main = do
                   textBoxes = asTextBoxes appstate
                   tb1Text = textBoxText $ head textBoxes
                   numBoxesInt = asNumBoxesInt appstate
+                  numBoxesFloat = asNumBoxesFloat appstate
                   (initText, ruleMap) = parseRules tb1Text
                   inputMode = asInputMode appstate
                   rules = interactiveRules ruleMap 
+                  q = V4 
+                    (nbValue $ numBoxesFloat !! 0)
+                    (nbValue $ numBoxesFloat !! 1) 
+                    (nbValue $ numBoxesFloat !! 2)
+                    (nbValue $ numBoxesFloat !! 3)
               in do
               newMode <- updateInputMode inputMode
               drawing
@@ -135,6 +164,7 @@ main = do
                               production = times num (`produce` rules) initText 
                           mapM_ (\(x, y) -> drawLine3D x y orange) (mkLines production) 
                           --drawMesh m mat matrixIdentity
+                          drawLine3D (V3 0 0 0) (vector3RotateByQuaternion (V3 0 1 0) $ quaternionNormalize q) blue
                           drawGrid 20 5
                           
                        )
@@ -142,6 +172,7 @@ main = do
                        ( do
                            mapM_ drawTextBox textBoxes
                            mapM_ drawNumberBox numBoxesInt
+                           mapM_ drawNumberBox numBoxesFloat
                        )
                 )
               case newMode of 
@@ -153,8 +184,10 @@ main = do
                 InteractUI -> do
                     tbs <- mapM updateTextBox textBoxes
                     nbsI <- mapM updateNumberBox  numBoxesInt
+                    nbsF <- mapM updateNumberBox numBoxesFloat
                     return $ appstate { asTextBoxes = tbs
                                       , asNumBoxesInt = nbsI 
+                                      , asNumBoxesFloat = nbsF
                                       , asInputMode = newMode }
               
           )

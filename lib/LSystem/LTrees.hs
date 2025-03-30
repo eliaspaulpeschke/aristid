@@ -1,69 +1,109 @@
+{-# LANGUAGE TypeFamilies, TypeOperators, FlexibleInstances #-}
+
 module LSystem.LTrees where
+import LSystem (DrawState, Turtle (tuPosition, tuDirection, tuDirectionPerp, Turtle))
+import Control.Parallel.Strategies (parMap, rpar)
+import Linear
+import Control.Lens 
+import Data.MemoTrie
+import Control.Arrow (first)
+import Raylib.Types (Matrix)
 
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Text as T
-import Control.Monad.State.Lazy (StateT(StateT), MonadState (get, put), evalState, evalStateT)
-import Control.Monad.Identity (Identity(Identity, runIdentity))
-import Data.Foldable1 (Foldable1(toNonEmpty))
-import LSystem (DrawRulesW, DrawState, drawW)
-import Control.Monad.Writer (execWriterT, WriterT (runWriterT), execWriter, runWriter)
-import Control.Parallel.Strategies (parMap, rdeepseq, NFData, rpar)
-
-data LTree =  LNode T.Text [LTree] | LLeaf T.Text
+data LTree = LNode String [LTree] | LLeaf String
 
 instance Show LTree where
     show (LLeaf t) = "Leaf: " ++ show t ++ " "
     show (LNode t xs) = " { Node " ++ show t ++ " [ " ++ concatMap show xs ++ " ] } "  
 
-parseLTree :: T.Text -> LTree
+parseLTree :: String -> Maybe LTree
 parseLTree t = case breakBrackStart t of
-                    (T.Empty, T.Empty) -> LLeaf t
-                    (a, T.Empty)       -> LLeaf a
-                    (T.Empty, b)       -> LNode (T.pack "") $ innerParse b
-                    (a, b)             -> LNode a $ innerParse b 
+                    ("", "") -> Nothing  
+                    (a, "")  -> Just $ LLeaf a
+                    ("", b)  -> Just $ LNode "" $ innerParse b
+                    (a, b)   -> Just $ LNode a $ innerParse b 
 
-innerParse :: T.Text -> [LTree] 
+innerParse :: String -> [LTree] 
 innerParse t = case breakBrackStart t of
-                (T.Empty, T.Empty) -> [LLeaf t]
-                (x, T.Empty) -> [LLeaf x]
-                (T.Empty, x) -> case getBrackPart x of
-                    (T.Empty, T.Empty) -> [LLeaf t]
-                    (x1, T.Empty) -> innerParse x1 
+                ("", "") -> []
+                (x, "") -> [LLeaf x]
+                ("", x) -> case getBrackPart x of
+                    ("", "") -> []
+                    (x1, "") -> innerParse x1 
                     (a, b) -> concatMap innerParse [a, b] 
                 (a, b) -> [LNode a (innerParse b)]  
 
-breakBrackStart :: T.Text -> (T.Text, T.Text)
-breakBrackStart = T.break (=='[')
+breakBrackStart :: String -> (String, String)
+breakBrackStart = break (=='[')
 
-getBrackPart :: T.Text -> (T.Text, T.Text)
-getBrackPart t = (dropL a, dropR b)  
-                where 
-                (a, b) = runIdentity $ evalStateT (T.spanM cntBracks t) 0
-                dropL = T.drop 1
-                dropR = T.drop 1
+getBrackPart :: String -> (String, String)
+getBrackPart ('[' : xs) = let (_, a, b) = foldl cntBracks (1, "", "") xs in (a, b)
+    where
+    cntBracks :: (Int, String, String) -> Char ->  (Int, String, String)
+    cntBracks (count, bp, rest) '[' = case count of
+            0 -> (count, bp, rest ++ ['['])
+            _ -> (count + 1, bp ++ ['['], rest)
+    cntBracks (count, bp, rest) ']' = case count of
+            0 -> (count, bp, rest ++ [']'])
+            1 -> (0, bp, rest)
+            _ -> (count - 1, bp ++ [']'], rest)
+    cntBracks (count, bp, rest)  x  = case count of
+            0 -> (count, bp, rest ++ [x])
+            _ -> (count, bp ++ [x], rest)
 
-cntBracks :: Char -> StateT Int Identity Bool
-cntBracks c = do
-                s <- get
-                case c of
-                    '[' -> put (s + 1)
-                    ']' -> put (s - 1)
-                    _   -> pure ()
-                s2 <- get
-                case s2 of
-                    0 -> return False
-                    x | x < 0 -> error 
-                        "Malformed LSystem String: Brackets do not match"
-                    _ -> return True
+getBrackPart "" = ("", "")
+getBrackPart _  = error "getBrackPart got a String that does not start with [" 
+
+type TDrawRules w = Char -> (Matrix, w) -> (Matrix, w)
+
+type DrawFunc w = String -> (Matrix, w)
+
+evalLTreeW :: (Monoid w) => DrawFunc w -> DrawState -> LTree -> w
+evalLTreeW f st (LLeaf t) = let (_, res) = f st t in res
+evalLTreeW f st (LNode t d) = let (newSt, res) = f st t in
+                            ( res <> mconcat (parMap rpar (evalLTreeW f newSt) d))
+
+mkDraw :: (Monoid w) => TDrawRules w -> DrawFunc w
+mkDraw rules = memo inner
+    where 
+    inner state = foldl (flip rules) (state, mempty) 
+
+debugRules :: TDrawRules String
+debugRules 'F' (tu, w) = ( [st { tuPosition = newpos }] 
+                          , w ++ show (newpos ^._x) ++ "," )
+    where
+    st = head tu 
+    pos = tuPosition  st
+    dir = tuDirection st
+   -- per = tuDirectionPerp st
+    newpos = pos + dir
+debugRules _ x = x
+
+enum' :: (HasTrie a) => (a -> a') -> (a :->: b) -> [(a', b)]
+enum' f = (fmap.first) f . enumerate
+
+instance HasTrie Float where
+  data Float :->: x = FloatTrie ((Integer, Int) :->: x)
+  trie f = FloatTrie $ trie (f . uncurry encodeFloat)
+  untrie (FloatTrie t) = untrie t . decodeFloat
+  enumerate (FloatTrie t) = enum' (uncurry encodeFloat) t
+
+instance (HasTrie a) => HasTrie (V3 a) where
+  data (V3 a) :->: x = V3Trie ([a] :->: x)
+  trie f = V3Trie $ trie (f . (\x -> V3 (head x) (x !! 1) (x !! 2)))
+  untrie (V3Trie t) = untrie t . (\(V3 a b c) -> [a,b,c])
+  enumerate (V3Trie t) = enum' (\x -> V3 (head x) (x !! 1) (x !! 2)) t
 
 
-unparseTree :: LTree -> T.Text
-unparseTree (LLeaf t) = t
-unparseTree (LNode t xs) = T.concat (t : map handle xs)
-            where
-            handle x = T.snoc (T.cons '[' $ unparseTree x) ']'
+turtle2List :: Turtle -> [V3 Float]
+turtle2List tu = [tuPosition tu, tuDirection tu, tuDirectionPerp tu]
 
-evalLTreeW :: (Monoid w) => DrawRulesW w -> DrawState -> LTree -> w
-evalLTreeW r st (LLeaf t) = let (_, res) = drawW r t st in res
-evalLTreeW r st (LNode t d) = let (newSt, res) = drawW r t st in
-                            ( res <> mconcat (parMap rpar (evalLTreeW r newSt) d))
+list2Turtle :: [V3 Float] -> Turtle
+list2Turtle xs =  Turtle {  tuPosition = head xs 
+                             , tuDirection = xs !! 1
+                             , tuDirectionPerp = xs !! 2 }  
+
+instance HasTrie Turtle where
+  data Turtle :->: x = DrawStateTrie ([V3 Float] :->: x)
+  trie f = DrawStateTrie $ trie (f. list2Turtle)
+  untrie (DrawStateTrie t) = untrie t . turtle2List 
+  enumerate (DrawStateTrie t) = enum' list2Turtle t
