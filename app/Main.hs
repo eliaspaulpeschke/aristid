@@ -8,7 +8,7 @@ import Raylib.Core.Models (drawGrid,  drawLine3D)
 import Raylib.Types (Camera3D (Camera3D), CameraMode (CameraModeFirstPerson), CameraProjection (CameraPerspective), pattern Vector3, Camera2D (Camera2D), pattern Vector2, Rectangle (Rectangle), KeyboardKey (KeyUp, KeyDown, KeyLeftControl, KeyRightControl, KeyM), Color)
 import Raylib.Util (drawing, mode3D, whileWindowOpen_, withWindow, mode2D)
 import Raylib.Util.Colors (orange, white, black, blue)
-import Graphics.UI.Hayout (HayTree (HayNode), hayRectangle, HayConfig (HayConfig, hayMeasureText, hayLog), HayText (HayText, hayTextText, hayTextFontsize), HaySize (HaySize), HayPos (HayPos), HayElemSize (Auto, Fixed), HayColor (HayColor), HayNodeElem (HayRectangle, hayRectPos, hayRectID, hayRectBackgroundColor))
+--import Graphics.UI.Hayout (HayTree (HayNode), hayRectangle, HayConfig (HayConfig, hayMeasureText, hayLog), HayText (HayText, hayTextText, hayTextFontsize), HaySize (HaySize), HayPos (HayPos), HayElemSize (Auto, Fixed), HayColor (HayColor), HayNodeElem (HayRectangle, hayRectPos, hayRectID, hayRectBackgroundColor))
 import Raylib.Core.Text (getFontDefault, measureTextEx)
 import qualified Data.Text as T
 import Linear (V2(V2), V4(V4))
@@ -36,7 +36,7 @@ initialAppState = AppState {
              1
        }
 
-
+{-
 myMeasureText :: HayText -> IO HaySize 
 myMeasureText (HayText {hayTextText=txt, hayTextFontsize=size}) = do
     font <- getFontDefault 
@@ -83,7 +83,7 @@ renderHayTree (HayNode (HayRectangle {hayRectPos=(HayPos pos)
     drawRectangleV pos size $ colorFromNormalized col 
     childElems <- runReaderT (sequence children) hayConf
     mapM_ renderHayTree childElems
-    
+-}
 
 main :: IO ()
 main = do
@@ -108,8 +108,8 @@ main = do
                        )
                     mode2D cam2D 
                       ( do
-                          myTree <- myHayTree
-                          renderHayTree myTree
+                         -- myTree <- myHayTree
+                          --renderHayTree myTree
                           pure appstate
                        )
                 )
