@@ -39,7 +39,9 @@ class ElementData a where
     canGrow :: a -> Bool
     grow :: a -> V2 Float -> a
     grow' :: (a -> V2 Float -> a) -> a -> V2 Float -> a --Custom grow algo 
-    setPosition :: a -> V2 Float -> a
+    positionChildren :: (a, [HUITree]) -> Either RenderError HUITree
+    --setPosition :: a -> V2 Float -> a
+    --getPosition :: a -> Maybe (V2 Float)
     render :: a -> Either RenderError [RenderCmd]
 
 data HUITree where
@@ -62,8 +64,17 @@ sizeTree node = snd $ innerSizeTree node
                             in (s, Leaf e)
 
 positionTree :: HUITree -> Either RenderError HUITree
-positionTree (Node el rest) =  error "not implemented"
+positionTree (Node el rest) = positionChildren (el, rest)
+positionTree (Leaf el) = Right (Leaf el)
 
 renderTree :: HUITree -> Either RenderError [RenderCmd] 
-renderTree (Node el rest) = error "not implemented" 
-renderTree (Leaf el) = error "not implemented"
+renderTree (Node el rest) = case render el of
+    Left err -> Left err
+    Right res -> foldl (\inp out -> case out of
+            (Left err) -> Left err
+            (Right list) -> case inp of
+                (Left err) -> Left err
+                (Right list2) -> Right (list ++ list2))
+        (Right res)
+        (map renderTree rest) 
+renderTree (Leaf el) = render el 
