@@ -27,7 +27,9 @@ data RenderCmd = Line {
         textSize :: V2 Float,
         textFont :: String,
         textText :: String,
-        textLineConfig :: RenderLineConfig} -- TODO: this is unsafe...
+        textLineConfig :: RenderLineConfig} 
+        -- TODO: this is unsafe, find a way to 
+        -- handle Fonts and Text size sensibly
 
 data RenderError = RenderError String
 
@@ -60,7 +62,7 @@ sizeTree node = snd $ innerSizeTree node
                             in (s, Leaf e)
 
 positionTree :: HUITree -> Either RenderError HUITree
-positionTree = error "not implemented"
+positionTree (Node el rest) =  error "not implemented"
 
 renderTree :: HUITree -> Either RenderError [RenderCmd] 
 renderTree (Node el rest) = error "not implemented" 
